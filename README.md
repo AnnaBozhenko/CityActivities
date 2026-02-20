@@ -1,3 +1,7 @@
+## Overview:
+
+[editable doc](https://docs.google.com/document/d/1r3bIRMeBPs8Jm1lrlEx-ZI1e_5dGhoxPRLpVEB6xL6s/edit?tab=t.0#heading=h.srysdeav6dt7)
+
 
 ## To load Telegram channel's posts:
 * navigate to `app` dir
@@ -7,7 +11,7 @@ app_id=...
 app_hash=...
 
 ``` 
-*Sign in to Telegram developer account. (Mannual's)[https://docs.telethon.dev/en/stable/basic/signing-in.html] 
+*Sign in to Telegram developer account. [Mannual's](https://docs.telethon.dev/en/stable/basic/signing-in.html)
 `Sign in` section may be helpful 
 * flags to run `python telegram_scraper.py`:
     * `-u` - channel's username(s), e.g: `-u kyivmas dtek_ua`, str, required
