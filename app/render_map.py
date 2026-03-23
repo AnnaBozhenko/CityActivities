@@ -45,7 +45,6 @@ def get_response(request):
         return json.loads(response.content)
     except:
         ...
-    return response
 
 
 def get_incidents(minLon,minLat,maxLon,maxLat):
@@ -91,9 +90,9 @@ def render_flow_speed():
     kyiv_road_network = ox.graph.graph_from_place("Kyiv, Ukraine", network_type="drive", simplify=True)
     nodes, edges = ox.graph_to_gdfs(kyiv_road_network)
     points = [row['geometry'].centroid for i, row in edges.iterrows()]
-    coords = [(point.x, point.y) for point in points]
+    coords = [(point.y, point.x) for point in points]
     indices = np.random.choice(range(len(coords)), size=10)
-    flow_speeds = [get_flow_speed(lon_p=coords[i][0], lat_p=coords[i][1]) for i in indices]
+    flow_speeds = [get_flow_speed(lat_p=coords[i][0], lon_p=coords[i][1]) for i in indices]
 
     flow_speeds = [flow_speed for flow_speed in flow_speeds if flow_speed is not None]
 
