@@ -91,6 +91,29 @@ The results are saved to flowspeed_YYYY-MM-DD_HH-mm.json in the following format
 python get_traffic.py -f
 ```
 
+### To get the current air raid state
+Use the `get_alert_state()` function from `app/get_air_raid_state.py`
+
+**Returns:**
+* `True`: If there is an active air raid alert in Kyiv.
+* `False`: If the airspace is currently clear.
+
+**Example usage:**
+```
+region_name = 'м. Київ'
+regions = {
+            'states': [
+                {
+                    'regionId': '31',
+                    'regionName': 'м. Київ',
+                    'regionType': 'State',
+                    'regionChildIds': []}
+             ]
+        }
+
+city_id = get_region_id(region_name, regions["states"])
+is_air_raid = get_alert_state(city_id)
+```
 
 
 

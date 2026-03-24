@@ -87,7 +87,7 @@ def load_channel(channels: dict[str, int], channel_name: str) -> tuple[int, bool
     
 
 with client:
-    fp = "tg_channels.json"
+    fp = "data/tg_channels.json"
     if not os.path.exists(fp):
         os.makedirs(Path(fp), exist_ok=True)
         with open(fp, "w") as f:
@@ -98,7 +98,7 @@ with client:
         channels = json.load(f)
     # channels = {"KyivCityOfficial": 1247556894, "dtek_ua": 1399067835, "kyivmaps": 1395254824}
 
-    posts_fp = "posts.json"
+    posts_fp = "data/posts.json"
 
     requested_channels = argparser.parse_args().username
     requested_channels_info = [load_channel(channels, channel_name) for channel_name in requested_channels]
