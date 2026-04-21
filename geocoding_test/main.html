@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Kyiv Addresses Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        #map { height: 100vh; width: 100%; }
+        body { margin: 0; }
+        .info { padding: 6px 8px; font: 14px/16px Arial; background: white; border-radius: 5px; box-shadow: 0 0 15px rgba(0,0,0,0.2); }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script>
+        const map = L.map('map', {
+            preferCanvas: true
+        }).setView([50.45, 30.52], 11);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // GeoJSON для адрес
+        fetch('data/kyiv_addresses.geojson')
+            .then(response => response.json())
+            .then(data => {
+                L.geoJson(data, {
+                    pointToLayer: function (feature, latlng) {
+                        return L.circleMarker(latlng, {
+                            radius: 3,
+                            fillColor: "#ff7800",
+                            color: "#000",
+                            weight: 1,
+                            opacity: 1,
+                            fillOpacity: 0.8
+                        });
+                    },
+                    onEachFeature: function (feature, layer) {
+                        let addr = feature.properties.full_addr || "Адреса не вказана";
+
+                        layer.bindPopup("<b>Адреса:</b><br>" + addr);
+                    }
+                }).addTo(map);
+                console.log("Завантажено " + data.features.length + " точок");
+            })
+            .catch(err => console.error('Помилка завантаження файла:', err));
+
+        // GeoJSON для районів
+        fetch('data/kyiv_raions.geojson')
+            .then(response => response.json())
+            .then(data => {
+                L.geoJson(data, {
+                    style: function () {
+                        return {
+                            color: '#0000FF',
+                            weight: 2,
+                            opacity: 1,
+                            fillColor: 'blue',
+                            fillOpacity: 0.2
+                        };
+                    }
+                }).addTo(map);
+            })
+            .catch(err => console.error('Помилка завантаження району:', err));
+
+        // GeoJSON для метро
+        fetch('data/kyiv_subway.geojson')
+            .then(response => response.json())
+            .then(data => {
+                L.geoJson(data, {
+                    style: function (feature) {
+                        const lineColor = feature.properties.line_color;
+                        return {
+                            color: lineColor,
+                            weight: 4,
+                            opacity: 1
+                        };
+                    },
+                }).addTo(map);
+                console.log("Загружено станції метро");
+            })
+            .catch(err => console.error('Помилка завантаження метро:', err));
+
+        // GeoJSON для станцій метро
+        fetch('data/kyiv_subway_stations.geojson')
+            .then(response => response.json())
+            .then(data => {
+                L.geoJson(data, {
+                    pointToLayer: function (feature, latlng) {
+                        return L.marker(latlng, {
+                            icon: L.icon({
+                                iconUrl: 'icon/metro_logo.png',
+                                iconSize: [12, 12],  // Розмір іконки
+                                iconAnchor: [6, 6],  // Центр іконки
+                                popupAnchor: [0, -12]  // Попап з'являється трохи вище іконки
+                            })
+                        });
+                    },
+                    onEachFeature: function (feature, layer) {
+                        const stationName = feature.properties.name || "Станція без назви";
+                        layer.bindPopup("<b>Станція метро:</b><br>" + stationName);
+                    }
+                }).addTo(map);
+                console.log("Завантажено станції метро");
+            })
+    </script>
+</body>
+</html>
