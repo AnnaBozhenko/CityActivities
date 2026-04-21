@@ -1,5 +1,5 @@
-Telethon==1.42.0
-python-dotenv==1.2.1
-flask==3.12.4
-folium==0.20.0
-osmnx==2.1.0
+Telethon
+python-dotenv
+flask
+folium
+osmnx

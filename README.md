@@ -94,6 +94,12 @@ python get_traffic.py -f
 ### To get the current air raid state
 Use the `get_alert_state()` function from `app/get_air_raid_state.py`
 
+* add `tg_conn.ini` with filled:
+```
+[UKRAINEALARM]
+api_token=
+```
+
 **Returns:**
 * `True`: If there is an active air raid alert in Kyiv.
 * `False`: If the airspace is currently clear.
