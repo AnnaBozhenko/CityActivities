@@ -1,10 +1,3 @@
-<<<<<<< HEAD
-Telethon
-python-dotenv
-flask
-folium
-osmnx
-=======
 Telethon==1.42.0
 python-dotenv==1.2.1
 #flask==3.12.4
@@ -21,4 +14,8 @@ sentence-transformers==5.3.0
 sklearn_crfsuite==0.5.0
 xgboost==3.2.0
 pytz====2026.1.post1
->>>>>>> 229d32c274b95fd1e68686280b7977b1146f036d
+taskiq
+taskiq-redis
+asyncpg
+shapely
+httpx
