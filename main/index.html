@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+
+  <meta charset="UTF-8" />
+  <title>Map Dashboard</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+  <!-- Style.css -->
+  <link rel="stylesheet" href="styles.css">
+
+</head>
+<body>
+
+<div id="map"></div>
+
+<div id="uiPanel">
+
+  <div id="timeControl">
+
+    <div class="timeTop">
+      <img src="icons/Logo2.png" id="logo">
+      <input type="text" id="searchInput"/>
+      <button id="searchBtn" type="button">
+        <span id="searchIcon">🔍</span>
+      </button>
+    </div>
+
+    <div class="divider"></div>
+
+    <div id="searchPanel">
+      <div class="locationBtn" id="geoBtn">
+        ⚙ Моє розташування
+      </div>
+    </div>
+
+    <div class="timeBottom">
+      <button id="prevDay">◀</button>
+      <span id="currentDateLabel"></span>
+      <button id="nextDay">▶</button>
+      <button id="calendarBtn">📅</button>
+    </div>
+
+    <input type="date" id="datePicker">
+
+  </div>
+
+
+  <div id="filters">
+
+    <div class="filterGroup" id="raionsFilterGroup">
+      <div class="filterGroupTitle">Райони</div>
+
+      <div class="multiSelectBox" id="raionsBox">
+
+        <input
+          type="text"
+          id="raionsSearchInput"
+          class="multiSelectSearch"
+          placeholder="Пошук району"
+        >
+
+        <div id="raionsList" class="multiSelectList">
+          <!-- список районів -->
+        </div>
+
+        <div id="selectedRaionsPanel" class="selectedRaionsPanel" style="display: none;">
+          <button type="button" id="clearRaionsBtn" class="clearAllBtn">
+            Очистити всі
+          </button>
+
+          <div id="selectedRaionsTags" class="selectedRaionsTags">
+            <!-- вибрані райони -->
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <br>
+
+    <b>Метро</b>
+    <label><input type="checkbox" checked value="metroLines"> Лінії метро</label>
+    <label><input type="checkbox" checked value="metroStations"> Станції метро</label><br>
+
+    <b>Події</b>
+    <label><input type="checkbox" checked value="fair"> Ярмарки</label>
+    <label><input type="checkbox" checked value="exhibition"> Виставки</label><br>
+
+    <b>Інциденти</b>
+    <label><input type="checkbox" checked value="accident"> Аварії</label>
+    <label><input type="checkbox" checked value="blackout"> Відключення</label><br>
+
+    <b>Дороги</b>
+    <label><input type="checkbox" checked value="repair"> Ремонт</label>
+    <label><input type="checkbox" checked value="closed"> Перекриття</label><br>
+
+    <b>Трафік TomTom</b>
+    <label><input type="checkbox" checked value="tomtomTrafficFlow"> Traffic flow</label>
+    <label><input type="checkbox" checked value="tomtomIncidents"> Дорожні інциденти</label><br><br>
+
+    <button id="applyFiltersBtn">Застосувати фільтри</button>
+  </div>
+
+
+  <div id="alertBadge">
+
+    <span id="alertDot"></span>
+    <div id="alertText">Тривоги немає</div>
+    <div id="alertTime"></div>
+
+  </div>
+
+
+  <div id="renderStatus">
+
+    <div id="lastUpdateLine">
+      Станом на: <span id="lastUpdateTime">—</span>
+    </div>
+
+    <div id="nextUpdateLine">
+      <span id="statusDot"></span>
+      Оновлення через <span id="nextUpdateCountdown">30</span> с.
+      <span id="refreshIcon">⟳</span>
+    </div>
+
+  </div>
+
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="data/data_markers.js"></script>
+<script src="data/data_polygons.js"></script>
+<script src="data/data_roads.js"></script>
+<script src="scripts/alerts.js"></script>
+<script src="scripts/filters.js"></script>
+<script src="scripts/search.js"></script>
+<script src="scripts/map.js"></script>
+<script src="scripts/render.js"></script>
+
+</body>
+</html>
