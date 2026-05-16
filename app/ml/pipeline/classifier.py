@@ -4,12 +4,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 import numpy as np
-from sentence_transformers import SentenceTransformer
 
 CONFIDENCE_THRESHOLD = 0.70
 MODELS_DIR = Path(__file__).parent.parent / "models"
 MODEL_PATH = MODELS_DIR / "event_type_classifier.pkl"
 
+from embeddings import get_encoder
 
 @dataclass(frozen=True)
 class ClassificationResult:
@@ -42,12 +42,12 @@ class EventClassifier:
         self,
         model,
         label_encoder,
-        encoder: SentenceTransformer,
+        encoder,
         embedding_model_name: str,
     ):
         self._model = model
         self._label_encoder = label_encoder
-        self._encoder = encoder
+        self._encoder = get_encoder()
         self._embedding_model_name = embedding_model_name
 
     @classmethod
@@ -77,7 +77,7 @@ class EventClassifier:
         label_encoder = artifact["label_encoder"]
         encoder_name = artifact["encoder_name"]
 
-        encoder = SentenceTransformer(encoder_name)
+        encoder = get_encoder()
         elapsed = (time.perf_counter() - t0) * 1000
         print(f"Класифікатор завантажено за {elapsed:.0f}ms")
 

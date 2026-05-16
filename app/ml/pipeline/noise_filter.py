@@ -5,12 +5,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 import numpy as np
-from sentence_transformers import SentenceTransformer
 
 ML_ACTIONABLE_THRESHOLD = 0.45
 MODELS_DIR = Path(__file__).parent.parent / "models"
 MODEL_PATH  = MODELS_DIR / "is_actionable_classifier.pkl"
 
+from embeddings import get_encoder
 
 @dataclass(frozen=True)
 class NoiseFilterResult:
@@ -39,11 +39,11 @@ class NoiseFilter:
     def __init__(
         self,
         model,
-        encoder:   SentenceTransformer,
+        encoder,
         threshold: float = ML_ACTIONABLE_THRESHOLD,
     ) -> None:
         self._model = model
-        self._encoder = encoder
+        self._encoder = get_encoder()
         self._threshold = threshold
         self._noise_re = self._compile_rules()
 
@@ -101,7 +101,7 @@ class NoiseFilter:
 
         artifact = joblib.load(model_path)
         model = artifact.get("model")
-        encoder = SentenceTransformer(artifact["encoder_name"])
+        encoder = get_encoder()
 
         elapsed = (time.perf_counter() - t0) * 1000
         print(f"Noise filter завантажено за {elapsed:.0f}ms")
