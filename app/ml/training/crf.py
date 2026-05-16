@@ -14,6 +14,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_PATH = BASE_DIR / "data" / "data_with_tags.json"
 MODEL_DIR = BASE_DIR / "models"
 MODEL_PATH = MODEL_DIR / "address_ner_crf.pkl"
+SUBWAY_STATIONS_PATH = BASE_DIR / "data" / "subway_stations.txt"
+STREETS_PATH = BASE_DIR / "data" / "kyiv_streets.txt"
+DISTRICTS_PATH = BASE_DIR / "data" / "kyiv_raions.txt"
 
 STREET_ABBRS = {
     "вул", "вул.", "вулиця", "просп", "просп.", "проспект",
@@ -27,6 +30,40 @@ ADDR_TRIGGERS = {
 }
 
 ADDR_CONTEXT = STREET_ABBRS | ADDR_TRIGGERS
+
+DICTIONARIES = {
+    "metro_stations": set(),
+    "metro_lines": set(),
+    "districts": set(),
+    "street_names": set(),  
+}
+subway = ["Сирецько-Печерська лінія", 
+          "Куренівсько-Червоноармійська лінія", 
+          "Святошинсько-Броварська лінія"]
+
+def load_dictionaries():
+
+    if SUBWAY_STATIONS_PATH.exists():
+        with open(SUBWAY_STATIONS_PATH, "r", encoding="utf-8") as f:
+            DICTIONARIES["metro_stations"] = {line.strip().lower() for line in f if line.strip()}
+    if DISTRICTS_PATH.exists():
+        with open(DISTRICTS_PATH, "r", encoding="utf-8") as f:
+            DICTIONARIES["districts"] = {line.strip().lower() for line in f if line.strip()}
+    if STREETS_PATH.exists():
+        with open(STREETS_PATH, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                parts = re.split(r'\s+', line, maxsplit=1)
+                if len(parts) > 1:
+                    name = parts[1].lower()
+                    DICTIONARIES["street_names"].add(name)
+                else:
+                    DICTIONARIES["street_names"].add(line.lower())
+    DICTIONARIES["metro_lines"] = {name.lower() for name in subway}
+
+
 
 def word2features(seq: list[tuple[str, str]], i: int) -> dict:
     token = seq[i][0]
@@ -50,6 +87,14 @@ def word2features(seq: list[tuple[str, str]], i: int) -> dict:
         "w.is_house_range": bool(re.match(r"^\d+[–\-]\d+", token)),
         "w.is_punct": not token[0].isalnum() if token else False,
         "w.ukr_street_end": any(w.endswith(suf) for suf in ["ська", "ький", "ька", "ьке", "ього", "ого", "а", "я"]),
+        
+        "w.is_metro_station": w in DICTIONARIES["metro_stations"],
+        "w.is_metro_line": w in DICTIONARIES["metro_lines"],
+        "w.is_district": w in DICTIONARIES["districts"],
+        "w.is_street_name": w in DICTIONARIES["street_names"],
+        
+        "w.is_street_part": any(w in name for name in list(DICTIONARIES["street_names"])[:500]), 
+
     }
 
     if i > 0:
@@ -104,6 +149,7 @@ def load_data():
 
 
 def main():
+    load_dictionaries()
     sequences = load_data()
 
     X = [seq2features(seq) for seq in sequences]
@@ -147,3 +193,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
