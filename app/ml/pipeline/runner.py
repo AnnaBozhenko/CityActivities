@@ -16,6 +16,7 @@ NOISE_CLASS = "шум"
 class RawMessage:
     text:         str
     source_type:  str
+    address: str
     source_name:  str
     published_at: datetime
     raw_id:       Optional[str] = None
@@ -31,6 +32,7 @@ class EnrichedEvent:
     text:         str
     text_clean:   str
     source_type:  str
+    address: str
     source_name:  str
     published_at: datetime
 

@@ -13,7 +13,7 @@ from sklearn.metrics import classification_report, f1_score
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-DATA_PATH = BASE_DIR / "data" / "synthetic_dataset.json"
+DATA_PATH = BASE_DIR / "data" / "scraped_events.json"
 MODEL_DIR = BASE_DIR / "models"
 MODEL_PATH = MODEL_DIR / "event_type_classifier.pkl"
 
@@ -42,9 +42,11 @@ def main():
 
     print(f"\nLoading embedding model: {MODEL_NAME}")
     encoder = SentenceTransformer(MODEL_NAME)
+    embeddings_file = BASE_DIR / "data" / "embeddings_cache.npy"
 
     print("Computing embeddings...")
     X = encoder.encode(df['text'].tolist(), show_progress_bar=True, batch_size=32)
+    np.save(embeddings_file, X)
     y = df['event_type'].values
 
     label_encoder = LabelEncoder()

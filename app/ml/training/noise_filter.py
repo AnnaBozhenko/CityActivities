@@ -13,7 +13,7 @@ from sklearn.metrics import classification_report, f1_score
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-DATA_PATH = BASE_DIR / "data" / "synthetic_dataset.json"
+DATA_PATH = BASE_DIR / "data" / "flattened_annotated_scraped_data.json"
 MODEL_DIR = BASE_DIR / "models"
 MODEL_PATH = MODEL_DIR / "is_actionable_classifier.pkl"
 
@@ -59,7 +59,7 @@ def load_data() -> tuple[list[str], list[bool]]:
     df = df[df['event_type'] != 'шум'].reset_index(drop=True)
     
     texts = df['text'].tolist()
-    labels = df['is_actionable'].tolist()
+    labels = df['is_actionable'] = df['event_type'].apply(lambda x: False if str(x).strip() == "шум" else True).tolist()
     
     print(f"Data for binary classification: {len(texts)} records")
     print(f"is_actionable=True: {sum(labels)}")

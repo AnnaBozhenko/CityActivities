@@ -16,15 +16,38 @@ CREATE TABLE raw.news (
     ingested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE SCHEMA IF NOT EXISTS enriched;
+
+-- 1. Table for Accepted Events
 CREATE TABLE enriched.city_event (
-    event_id SERIAL PRIMARY KEY,
+    event_id UUID PRIMARY KEY,
     news_id INTEGER REFERENCES raw.news(news_id) ON DELETE CASCADE,
-    event_tag TEXT,                  -- ML predicted (e.g., 'concert', 'repair')
+    
+    event_type VARCHAR(100) NOT NULL,
+    confidence NUMERIC(5, 4) NOT NULL,
+    
     start_time TIMESTAMP WITH TIME ZONE,
     end_time TIMESTAMP WITH TIME ZONE,
-    -- PostGIS Geometry column (supports Point, Line, or Polygon)
-    geom GEOMETRY(Geometry, 4326), 
-    processed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    status VARCHAR(20),       -- 'scheduled', 'active', 'resolved'
+    is_planned BOOLEAN,
+    
+    extracted_addresses TEXT[], -- Raw strings from NER
+    geom GEOMETRY(MultiPoint, 4326), -- For the map later
+    
+    pipeline_ms NUMERIC(8, 2),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    
+    UNIQUE(news_id) -- One raw news item usually equals one event
+);
+
+-- 2. Table for Rejected Noise (Crucial for ML monitoring)
+CREATE TABLE enriched.rejected_noise (
+    reject_id SERIAL PRIMARY KEY,
+    news_id INTEGER REFERENCES raw.news(news_id) ON DELETE CASCADE,
+    rejection_stage VARCHAR(50),  -- 'preprocessing', 'classifier', 'noise_filter', 'no_address'
+    rejection_reason TEXT,
+    event_type VARCHAR(100),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Index for map performance
