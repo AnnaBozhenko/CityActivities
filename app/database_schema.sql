@@ -6,13 +6,12 @@ CREATE SCHEMA alerts;   -- For Air Raid and Traffic status
 CREATE SCHEMA electricity; -- For electricity state across Kyiv addresses
 
 CREATE TABLE raw.news (
-    news_id SERIAL PRIMARY KEY,
-    source_id TEXT NOT NULL,         -- <tg_channel_username> or <base_url>
+    post_id TEXT PRIMARY KEY,
     source_type TEXT NOT NULL,       -- 'tg' or 'web'
+    source_name TEXT NOT NULL,
     url TEXT UNIQUE,                 -- url to post, following <base_url>
-    title TEXT,
-    news_content TEXT NOT NULL,
-    published_date TIMESTAMP WITH TIME ZONE,         
+    news_text TEXT NOT NULL,
+    published_at TIMESTAMP WITH TIME ZONE,         
     ingested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -21,7 +20,8 @@ CREATE SCHEMA IF NOT EXISTS enriched;
 -- 1. Table for Accepted Events
 CREATE TABLE enriched.city_event (
     event_id UUID PRIMARY KEY,
-    news_id INTEGER REFERENCES raw.news(news_id) ON DELETE CASCADE,
+    post_id TEXT REFERENCES raw.news(post_id) ON DELETE CASCADE,
+    source_type VARCHAR(100) NOT NULL,
     
     event_type VARCHAR(100) NOT NULL,
     confidence NUMERIC(5, 4) NOT NULL,
@@ -35,15 +35,13 @@ CREATE TABLE enriched.city_event (
     geom GEOMETRY(MultiPoint, 4326), -- For the map later
     
     pipeline_ms NUMERIC(8, 2),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    
-    UNIQUE(news_id) -- One raw news item usually equals one event
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 2. Table for Rejected Noise (Crucial for ML monitoring)
 CREATE TABLE enriched.rejected_noise (
     reject_id SERIAL PRIMARY KEY,
-    news_id INTEGER REFERENCES raw.news(news_id) ON DELETE CASCADE,
+    post_id TEXT REFERENCES raw.news(post_id) ON DELETE CASCADE,
     rejection_stage VARCHAR(50),  -- 'preprocessing', 'classifier', 'noise_filter', 'no_address'
     rejection_reason TEXT,
     event_type VARCHAR(100),

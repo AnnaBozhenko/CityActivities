@@ -1,18 +1,14 @@
-import random
-
-import os
-
 from main import broker
 import asyncpg
 
 import dotenv
 import configparser
-
 from datetime import datetime, date
-
-from mocked_models import MockMLPackage 
-
+import re
+import uuid
 from telethon import TelegramClient
+import random
+import os
 
 import httpx
 from bs4 import BeautifulSoup
@@ -20,6 +16,8 @@ import json
 import urllib.parse
 
 from shapely.geometry import LineString, Point
+
+from ml.pipeline.runner import PipelineRunner, RawMessage
 
 dotenv.load_dotenv()
 config = configparser.ConfigParser()
@@ -32,6 +30,7 @@ TELEGRAM_API_HASH = config["TELEGRAM"]["app_hash"]
 TELEGRAM_CHANNELS = ["KyivCityOfficial", "dtek_ua", "kyivmaps", "kievreal1", "kyivteploenergo", "autokiev", "kyivpatrol"]
 KYIV_REGION_ID = "31"
 tg_client = None
+ml_runner = None
 
 async def get_db_conn():
     return await asyncpg.connect(database_url)
@@ -43,10 +42,75 @@ def get_tg_client():
         tg_client = TelegramClient('anon', TELEGRAM_API_ID, TELEGRAM_API_HASH)
     return tg_client
 
+
+def get_ml_runner():
+    global ml_runner
+    if ml_runner is None:
+        print("Initializing ML Pipeline in Worker Memory...")
+        ml_runner = PipelineRunner()
+        print("ML Pipeline Ready.")
+    return ml_runner
+
 @broker.on_event("startup")
-async def startup():
+async def startup_event():
+    global tg_client
     tg_client = get_tg_client()
     await tg_client.connect()
+
+
+def generate_post_id(channel_id: int, message_id: int) -> str:
+    # Create a unique, fixed namespace for your project
+    NAMESPACE_TELEGRAM = uuid.UUID('12345678-1234-5678-1234-567812345678')
+    
+    # Combine the immutable IDs
+    unique_string = f"{channel_id}_{message_id}"
+    
+    # Generate a deterministic UUID
+    post_id = uuid.uuid5(NAMESPACE_TELEGRAM, unique_string)
+    
+    return str(post_id)
+
+
+
+def split_digest_post(text: str) -> list[str]:
+    """
+    Splits a single compilation post into individual event strings.
+    """
+    # Regex to split on numbered emojis (1️⃣, 2️⃣) or standard numbers (1., 2.)
+    # The (?=...) is a lookahead assertion so we don't delete the numbers when splitting.
+    split_pattern = re.compile(
+        r"(?="
+        r"[1-9]️⃣|"               # Keycaps (1️⃣)
+        r"[①-⑨❶-❾]|"            # Circled numbers (①, ❶)
+        r"\b[1-9][\.\)\-]\s"      # Standard numbers with punctuation and a space (1., 2), 3-)
+        r")"
+    )
+    
+    # Split the text
+    chunks = split_pattern.split(text)
+    
+    individual_events = []
+    
+    for chunk in chunks:
+        chunk = chunk.strip()
+        
+        # 1. Skip intro text (usually doesn't have time/location)
+        if len(chunk) < 40 and "Де:" not in chunk and "Коли:" not in chunk:
+            continue
+            
+        # 2. Clean up the outro (usually attached to the last event)
+        # Using a common call-to-action keyword to slice off the bottom noise
+        outro_markers = ["До того ж читайте", "Більше івентів", "Підписуйтесь"]
+        for marker in outro_markers:
+            if marker in chunk:
+                chunk = chunk.split(marker)[0].strip()
+                
+        # 3. Keep chunks that look like real sub-events
+        if len(chunk) > 30:
+            individual_events.append(chunk)
+            
+    return individual_events
+
 
 @broker.task(schedule=[
     {"cron": "* * * * *", "args": ["tg"], "labels": {"source": "Telegram"}}
@@ -70,31 +134,38 @@ async def fetch_news_task(source_type: str):
                     
                     # Create a unique URL for the Telegram post to satisfy DB unique constraints
                     post_url = f"https://t.me/{channel_name}/{message.id}"
-                    title, *content = message.text.split("\n")
-                    content = " ".join(content)
+                    text = message.text.replace("\n", " ")
+                    text_marked = re.sub(r'\s{2,}', ' __SPACE__ ', text)
+                    text_fixed = re.sub(r'(?<=\S)\s(?=\S)', '', text_marked)
+                    text_fixed = text_fixed.replace('__SPACE__', ' ')
+                    
+                    text = " ".join(text)
                     # Standardize data to match your DB schema
                     all_posts.append({
-                        "s_id": str(message.peer_id.channel_id),
-                        "type": "tg",
+                        "post_id": generate_post_id(message.chat_id, message.id),
+                        "source_type": "tg",
+                        "source_name": channel_name,
                         "url": post_url,
-                        "title": title, # Telegram doesn't have titles, so we use a snippet
-                        "content": content,
-                        "pub_date": message.date # Telethon returns timezone-aware datetime
+                        "news_text": text,
+                        "published_at": message.date # Telethon returns timezone-aware datetime
                     })
             except Exception as e:
                 print(f"Error scraping {channel_name}: {e}")
         
+        new_posts_count = 0
         # Now use your existing insertion logic
         for item in all_posts:
             news_id = await conn.fetchval("""
-                INSERT INTO raw.news (source_id, source_type, url, title, news_content, published_date)
+                INSERT INTO raw.news (post_id, source_type, source_name, url, news_text, published_at)
                 VALUES ($1, $2, $3, $4, $5, $6)
-                ON CONFLICT (url) DO NOTHING RETURNING news_id;
-            """, item['s_id'], item['type'], item['url'], item['title'], item['content'], item['pub_date'])
+                ON CONFLICT (url) DO NOTHING RETURNING post_id;
+            """, item['post_id'], item['source_type'], item["source_name"], item['url'], item['news_text'], item['published_at'])
             
             if news_id:
                 print(f" [TG] New post ingested: {news_id}")
-                await enrich_news_task.kiq(news_id)
+                new_posts_count += 1
+        if new_posts_count > 0:
+            await enrich_news_batch_task.kiq()
 
     elif source_type == "web":
         # ... (Your Web Scraping Logic here) ...
@@ -103,66 +174,86 @@ async def fetch_news_task(source_type: str):
     await conn.close()
 
 
-# @broker.task(
-#     schedule=[
-#     {"cron": "* * * * *", "args": ["tg"], "labels": {"source": "Telegram"}},
-#     {"cron": "* * * * *", "args": ["web"], "labels": {"source": "Web"}}
-# ])
-# async def fetch_news_task(source_type: str):
-#     conn = await get_db_conn()
+@broker.task(schedule=[{"cron": "*/5 * * * *"}]) # Запуск кожні 5 хв
+async def enrich_news_batch_task():
+    ml_runner = get_ml_runner()
+    conn = await get_db_conn() # Ваша функція підключення до Postgres
     
-#     # Mock Data
-#     mock_data = [
-#         {
-#             "s_id": "kyiv_alerts_mock",
-#             "type": source_type,
-#             "url": f"https://mock.com/{random.randint(1,99999)}" if source_type == "web" else "kyivnews",
-#             "title": "Ремонт дороги на Олени Теліги",
-#             "content": "Сьогодні проводяться планові роботи на дорозі...",
-#             "pub_date": "2026-04-23 10:00"
-#         }
-#     ]
-
-#     for item in mock_data:
-#         published_date = datetime.strptime(item["pub_date"], "%Y-%m-%d %H:%M")
-#         news_id = await conn.fetchval("""
-#             INSERT INTO raw.news (source_id, source_type, url, title, news_content, published_date)
-#             VALUES ($1, $2, $3, $4, $5, $6)
-#             ON CONFLICT (url) DO NOTHING RETURNING news_id;
-#         """, item['s_id'], item['type'], item['url'], item['title'], item['content'], published_date)
-#         print(f"news_id: {news_id}")
-#         if news_id:
-#             await enrich_news_task.kiq(news_id)
-#     await conn.close()
-
-
-@broker.task
-async def enrich_news_task(news_id: int):
-    print(f" [!] Starting enrichment for News ID: {news_id}")
-    conn = await get_db_conn()
     try:
-        row = await conn.fetchrow("SELECT title, news_content, published_date FROM raw.news WHERE news_id = $1", news_id)
+        # 1. Беремо пости, для яких ЩЕ НЕМАЄ записів в enriched.city_event або rejected_noise
+        rows = await conn.fetch("""
+            SELECT n.post_id, n.news_text, n.source_type, 
+                   n.source_name, n.published_at, n.url
+            FROM raw.news n
+            WHERE NOT EXISTS (SELECT 1 FROM enriched.city_event e WHERE e.post_id = n.post_id)
+              AND NOT EXISTS (SELECT 1 FROM enriched.rejected_noise r WHERE r.post_id = n.post_id)
+            LIMIT 50;
+        """)
 
-        if not row:
-            print(f" [X] Error: News ID {news_id} not found in DB")
+        if not rows:
             return
 
-        # Run Mock ML
-        tag = MockMLPackage.classify_event(row['title'], row['news_content'])
-        start, end = MockMLPackage.extract_times(row['published_date'], row['title'], row['news_content'])
-        wkt_hex_data = MockMLPackage.extract_and_geocode(row['title'] + '. ' + row['news_content'])
-        binary_geom = bytes.fromhex(wkt_hex_data)
+        # 2. Формуємо повідомлення для ML, розбиваючи дайджести
+        raw_messages = []
+        for row in rows:
+            base_id = row['post_id']
+            text = row['news_text']
 
-        print(f" [>] ML Results - Tag: {tag}, Geocode: {wkt_hex_data[:10]}...")
+            sub_events = split_digest_post(text)
 
-        await conn.execute("""
-            INSERT INTO enriched.city_event (news_id, event_tag, start_time, end_time, geom)
-            VALUES ($1, $2, $3, $4, ST_GeomFromWKB($5, 4326));
-        """, news_id, tag, start, end, binary_geom)
+            if len(sub_events) > 1:
+                for i, sub_text in enumerate(sub_events):
+                    raw_messages.append(RawMessage(
+                        text=sub_text,
+                        source_type=row['source_type'],
+                        source_name=row['source_name'],
+                        url=row['url'], 
+                        published_at=row['published_at'],
+                        raw_id=f"{base_id}_sub_{i}" # Унікальний ID для спліта
+                    ))
+            else:
+                raw_messages.append(RawMessage(
+                    text=text,
+                    source_type=row['source_type'],
+                    source_name=row['source_name'],
+                    url=row['url'],
+                    published_at=row['published_at'],
+                    raw_id=str(base_id)
+                ))
 
-        print(f" [OK] Successfully enriched News ID: {news_id}")
-    except Exception as e:
-        print(f" [ER] Enrichment failed: {e}")
+        # 3. Запускаємо БАТЧЕВУ ML Обробку
+        print(f" [ML] Starting inference for {len(raw_messages)} prepared events...")
+        results = ml_runner.process_batch(raw_messages, batch_size=32)
+
+        # 4. Розбираємо результати та записуємо в базу
+        for result in results:
+            if result is None:
+                continue
+            # Витягуємо оригінальний news_id (наприклад, з "45_sub_1" робимо int(45))
+            raw_id_str = result.event.raw_id if result.accepted else result.rejected.raw_message.raw_id
+            base_news_id = str(raw_id_str).split("_sub_")[0]
+
+            if result.accepted:
+                ev = result.event
+                await conn.execute("""
+                    INSERT INTO enriched.city_event 
+                    (event_id, post_id, source_type, event_type, confidence, start_time, end_time, status, is_planned, extracted_addresses, pipeline_ms)
+                    VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                """, 
+                ev.id, base_news_id, ev.source_type, ev.event_type, ev.event_confidence, 
+                ev.start_time, ev.end_time, ev.status, ev.is_planned, 
+                ev.addresses, ev.pipeline_ms)
+                
+            else:
+                rej = result.rejected
+                await conn.execute("""
+                    INSERT INTO enriched.rejected_noise 
+                    (post_id, rejection_stage, rejection_reason, event_type)
+                    VALUES ($1, $2, $3, $4)
+                """, base_news_id, rej.rejection_stage, rej.rejection_reason, rej.event_type)
+
+        print(f" [ML] Successfully processed batch of {len(rows)} raw posts into {len(raw_messages)} sub-events.")
+
     finally:
         await conn.close()
 

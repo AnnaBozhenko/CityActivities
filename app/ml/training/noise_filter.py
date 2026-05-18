@@ -56,11 +56,11 @@ def load_data() -> tuple[list[str], list[bool]]:
         data = json.load(f)
     
     df = pd.DataFrame(data)
-    df = df[df['event_type'] != 'шум'].reset_index(drop=True)
     
     texts = df['text'].tolist()
-    labels = df['is_actionable'] = df['event_type'].apply(lambda x: False if str(x).strip() == "шум" else True).tolist()
-    
+    df['is_actionable'] = df['event_type'].apply(lambda x: False if str(x).strip() == "шум" else True).tolist()
+    labels = df['is_actionable']
+
     print(f"Data for binary classification: {len(texts)} records")
     print(f"is_actionable=True: {sum(labels)}")
     print(f"is_actionable=False: {len(labels) - sum(labels)}")

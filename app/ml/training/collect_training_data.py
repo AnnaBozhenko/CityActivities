@@ -208,8 +208,8 @@ async def main():
         # --- THE DIGEST CHECK ---
         # If the text has multiple list markers, treat it as a digest
 
-        if "1️⃣" in text and "2️⃣" in text:
-            sub_events = split_digest_post(text)
+        sub_events = split_digest_post(text)
+        if len(sub_events) > 1:
             for sub_index, sub_text in enumerate(sub_events):
                 event = {
                     "post_id": f"{base_raw_id}_sub_{sub_index + 1}",

@@ -5,10 +5,10 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, List
-from classifier import ClassificationResult, EventClassifier
-from ner import AddressExtractor, NERResult
-from noise_filter import NoiseFilter, NoiseFilterResult
-from time_extractor import TimeExtractor, TimeResult
+from .classifier import ClassificationResult, EventClassifier
+from .ner import AddressExtractor, NERResult
+from .noise_filter import NoiseFilter, NoiseFilterResult
+from .time_extractor import TimeExtractor, TimeResult
 
 NOISE_CLASS = "шум"
 
@@ -16,7 +16,7 @@ NOISE_CLASS = "шум"
 class RawMessage:
     text:         str
     source_type:  str
-    address: str
+    url: str
     source_name:  str
     published_at: datetime
     raw_id:       Optional[str] = None
@@ -32,7 +32,6 @@ class EnrichedEvent:
     text:         str
     text_clean:   str
     source_type:  str
-    address: str
     source_name:  str
     published_at: datetime
 
@@ -111,7 +110,11 @@ class PipelineResult:
 def preprocess(text: str) -> str:
     if not text:
         return ""
-    result = unicodedata.normalize("NFC", text)
+    text_marked = re.sub(r'\s{2,}', ' __SPACE__ ', text)
+    text_fixed = re.sub(r'(?<=\S)\s(?=\S)', '', text_marked)
+    text_fixed = text_fixed.replace('__SPACE__', ' ')
+
+    result = unicodedata.normalize("NFC", text_fixed)
     result = re.sub(r"[\U0001F000-\U0001FFFF]", " ", result)
     result = result.replace("\n", " ").replace("\r", " ").replace("\t", " ")
     result = re.sub(r" {2,}", " ", result)

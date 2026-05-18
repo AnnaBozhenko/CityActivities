@@ -9,7 +9,7 @@ CONFIDENCE_THRESHOLD = 0.70
 MODELS_DIR = Path(__file__).parent.parent / "models"
 MODEL_PATH = MODELS_DIR / "event_type_classifier.pkl"
 
-from embeddings import get_encoder
+from .embeddings import get_encoder
 
 @dataclass(frozen=True)
 class ClassificationResult:

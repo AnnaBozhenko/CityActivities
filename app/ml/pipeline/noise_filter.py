@@ -10,7 +10,7 @@ ML_ACTIONABLE_THRESHOLD = 0.45
 MODELS_DIR = Path(__file__).parent.parent / "models"
 MODEL_PATH  = MODELS_DIR / "is_actionable_classifier.pkl"
 
-from embeddings import get_encoder
+from .embeddings import get_encoder
 
 @dataclass(frozen=True)
 class NoiseFilterResult:

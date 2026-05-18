@@ -137,13 +137,58 @@ def seq2labels(seq):
     return [tag for _, tag in seq]
 
 
+def tokenize_and_tag(text: str, target_address: str) -> list[tuple[str, str]]:
+    """Розбиває текст на токени та присвоює BIO-теги на основі знайденої адреси."""
+    tokens = re.findall(r"[\w']+|[.,!?;:\-—«»()\"\']", text)
+    
+    if not target_address or not str(target_address).strip():
+        return [(token, "O") for token in tokens]
+
+    match = re.search(re.escape(str(target_address)), text, re.IGNORECASE)
+    if not match:
+        return [(token, "O") for token in tokens]
+
+    start_char, end_char = match.span()
+    
+    bio_tags = []
+    current_char_idx = 0
+    
+    for token in tokens:
+        token_start = text.find(token, current_char_idx)
+        token_end = token_start + len(token)
+        current_char_idx = token_end
+        
+        if token_start >= start_char and token_end <= end_char:
+            if not bio_tags or bio_tags[-1][1] == "O":
+                bio_tags.append((token, "B-ADDR"))
+            else:
+                bio_tags.append((token, "I-ADDR"))
+        else:
+            bio_tags.append((token, "O"))
+            
+    return bio_tags
+
+
 def load_data():
     print(f'Loading data: {DATA_PATH}')
     with open(DATA_PATH, 'r', encoding='utf-8') as f:
         data = json.load(f)
     
-    df = pd.DataFrame(data)
-    sequences = df[df["address"].notnull()]["bio_tags"].tolist()
+    # df = pd.DataFrame(data)
+    # sequences = df[df["address"].notnull()]["bio_tags"].tolist()
+    sequences = []
+    for item in data:
+        text = item.get("text", "")
+        
+        # Якщо в JSON вже є bio_tags (з вашого штучного датасету), використовуємо їх
+        if "bio_tags" in item and item["bio_tags"]:
+            sequences.append(item["bio_tags"])
+        else:
+            # Інакше генеруємо їх на льоту зі строки "address"
+            address = item.get("address", "")
+            seq = tokenize_and_tag(text, address)
+            if seq:
+                sequences.append(seq)
     print(f'Found sequences: {len(sequences)}')
     return sequences
 
