@@ -120,6 +120,7 @@ def preprocess(text: str) -> str:
     result = re.sub(r" {2,}", " ", result)
     return result.strip()
 
+
 class PipelineRunner:
     """
     Оркестратор ML pipeline.

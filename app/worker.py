@@ -19,6 +19,11 @@ from shapely.geometry import LineString, Point
 
 from ml.pipeline.runner import PipelineRunner, RawMessage
 
+import asyncio
+from geopy.geocoders import Nominatim
+from geopy.adapters import AioHTTPAdapter
+from geopy.extra.rate_limiter import AsyncRateLimiter
+
 dotenv.load_dotenv()
 config = configparser.ConfigParser()
 config.read("tg_conn.ini")
@@ -51,12 +56,42 @@ def get_ml_runner():
         print("ML Pipeline Ready.")
     return ml_runner
 
+
 @broker.on_event("startup")
 async def startup_event():
     global tg_client
     tg_client = get_tg_client()
     await tg_client.connect()
 
+
+async def convert_addresses_to_multipoint(raw_addresses: list[str]) -> str | None:
+    if not raw_addresses:
+        return None
+
+    async with Nominatim(
+        user_agent="kyiv_city_events_aggregator", 
+        adapter_factory=AioHTTPAdapter
+    ) as geolocator:
+        
+        geocode = AsyncRateLimiter(geolocator.geocode, min_delay_seconds=1.1)
+        valid_points = []
+        
+        for addr in raw_addresses:
+            clean_addr = addr.replace(" .", ".").replace(" ,", ",").strip()
+            search_query = f"{clean_addr}, Київ, Україна"
+            
+            try:
+                location = await geocode(search_query)
+                if location:
+                    valid_points.append(f"{location.longitude} {location.latitude}")
+            except Exception as e:
+                print(f" [API] Помилка геокодування {search_query}: {e}")
+
+        if valid_points:
+            return f"MULTIPOINT({', '.join(valid_points)})"
+        
+        return None
+    
 
 def generate_post_id(channel_id: int, message_id: int) -> str:
     # Create a unique, fixed namespace for your project
@@ -235,14 +270,15 @@ async def enrich_news_batch_task():
 
             if result.accepted:
                 ev = result.event
+                multipoint_wkt = await convert_addresses_to_multipoint(ev.addresses)
                 await conn.execute("""
                     INSERT INTO enriched.city_event 
-                    (event_id, post_id, source_type, event_type, confidence, start_time, end_time, status, is_planned, extracted_addresses, pipeline_ms)
-                    VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                    (event_id, post_id, source_type, event_type, confidence, start_time, end_time, status, is_planned, extracted_addresses, pipeline_ms, geom)
+                    VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, ST_GeomFromText($12, 4326))
                 """, 
                 ev.id, base_news_id, ev.source_type, ev.event_type, ev.event_confidence, 
                 ev.start_time, ev.end_time, ev.status, ev.is_planned, 
-                ev.addresses, ev.pipeline_ms)
+                ev.addresses, ev.pipeline_ms, multipoint_wkt)
                 
             else:
                 rej = result.rejected
